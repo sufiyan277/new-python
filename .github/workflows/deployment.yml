@@ -1,0 +1,60 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: Amazon linux-latest
+
+    steps:
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Run tests (if applicable)
+      - name: Run tests
+        run: |
+          pytest
+
+      # Set up AWS CLI
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Build and push Docker image to ECR (if applicable)
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      - name: Build Docker image
+        run: |
+          docker build -t my-python-service .
+          docker tag my-python-service:latest <aws_account_id>.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-python-service:latest
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push <aws_account_id>.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-python-service:latest
+
+      # Deploy to ECS/Elastic Beanstalk/EC2
+      - name: Deploy to ECS (or other services)
+        run: |
+          # Example deployment to ECS
+          aws ecs update-service --cluster my-cluster --service my-service --force-new-deployment
